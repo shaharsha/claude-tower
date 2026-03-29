@@ -143,15 +143,25 @@ export async function activate(
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
-      // Resume the existing session and send the ship prompt directly.
-      // Use OS `open` to route to the focused window (not the extension host).
-      const sessionParam = sessionId ? `session=${encodeURIComponent(sessionId)}&` : '';
-      const claudeUri = `vscode://anthropic.claude-code/open?${sessionParam}prompt=${encodeURIComponent(prompt)}`;
+      // Claude Code ignores ?prompt for already-open sessions, so we:
+      // 1. Copy prompt to clipboard
+      // 2. Focus the session
+      // 3. Simulate ⌘V to paste into the input field
+      await vscode.env.clipboard.writeText(prompt);
+
+      const params = sessionId ? `?session=${encodeURIComponent(sessionId)}` : '';
+      const claudeUri = `vscode://anthropic.claude-code/open${params}`;
       try {
         await exec(`open ${shellQuote(claudeUri)}`, { timeout: 5000 });
       } catch {
         await vscode.env.openExternal(vscode.Uri.parse(claudeUri));
       }
+
+      // Wait for the panel to focus, then simulate paste
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      await exec(`osascript -e 'tell application "System Events" to keystroke "v" using command down'`, { timeout: 3000 }).catch(() => {
+        vscode.window.showInformationMessage('Ship prompt copied — paste with ⌘V');
+      });
     },
   );
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.9
+
+- **Ship button pastes prompt into existing session** — copies ship prompt to clipboard, focuses the session, and simulates ⌘V to paste into Claude Code's input field. Falls back to a toast if paste fails.
+
 ## 0.2.8
 
 - **Fix interrupted sessions stuck in Running** — stale "working" hooks (>5 min, no CPU) now fall through to JSONL heuristics instead of being trusted forever
