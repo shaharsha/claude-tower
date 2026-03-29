@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.7
+
+- **Fix status oscillation** — active sessions no longer jump between Running and Recent; uses JSONL `end_turn` signal to distinguish "between tool calls" from "turn completed"
+- **Ship button sends prompt to existing session** — resumes the session with `?session=<id>&prompt=...` instead of creating a new empty session
+- **Fix duplicate Claude Code tabs** — routes `vscode://` URIs through macOS `open` command to target the focused window, not the extension host window
+
 ## 0.2.6
 
 - **Git fetch before worktree** — new worktrees branch from `origin/main` (latest remote), not stale local main

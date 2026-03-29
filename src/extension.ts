@@ -122,7 +122,15 @@ export async function activate(
     'claude-tower.shipSession',
     async (arg?: any) => {
       const worktreePath = arg?._worktreePath;
+      const sessionId = arg?._sessionId;
       if (!worktreePath) { return; }
+
+      // Ship prompt: check project config → VS Code setting → default
+      const config = getConfig(worktreePath);
+      const projectPrompt = config?.ship?.prompt;
+      const globalPrompt = vscode.workspace.getConfiguration('claude-tower').get<string>('shipPrompt');
+      const prompt = projectPrompt ?? globalPrompt
+        ?? 'Create a PR for the changes in this branch. Write a clear title and description based on the commits and diff.';
 
       // Focus or open the worktree's VS Code window
       const currentWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -135,17 +143,15 @@ export async function activate(
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
-      // Ship prompt: check project config → VS Code setting → default
-      const config = getConfig(worktreePath);
-      const projectPrompt = config?.ship?.prompt;
-      const globalPrompt = vscode.workspace.getConfiguration('claude-tower').get<string>('shipPrompt');
-      const prompt = projectPrompt ?? globalPrompt
-        ?? 'Create a PR for the changes in this branch. Write a clear title and description based on the commits and diff.';
-
-      const uri = vscode.Uri.parse(
-        `vscode://anthropic.claude-code/open?prompt=${encodeURIComponent(prompt)}`,
-      );
-      await vscode.env.openExternal(uri);
+      // Resume the existing session and send the ship prompt directly.
+      // Use OS `open` to route to the focused window (not the extension host).
+      const sessionParam = sessionId ? `session=${encodeURIComponent(sessionId)}&` : '';
+      const claudeUri = `vscode://anthropic.claude-code/open?${sessionParam}prompt=${encodeURIComponent(prompt)}`;
+      try {
+        await exec(`open ${shellQuote(claudeUri)}`, { timeout: 5000 });
+      } catch {
+        await vscode.env.openExternal(vscode.Uri.parse(claudeUri));
+      }
     },
   );
 
@@ -309,6 +315,15 @@ export async function activate(
       }
       if (!worktreePath) { return; }
 
+      // Mark session as read
+      if (sessionId) {
+        sessionListProvider.markRead(sessionId);
+      }
+
+      // Build the Claude Code URI
+      const params = sessionId ? `?session=${encodeURIComponent(sessionId)}` : '';
+      const claudeUri = `vscode://anthropic.claude-code/open${params}`;
+
       // Focus existing window or open new one
       const currentWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (worktreePath !== currentWorkspace) {
@@ -317,18 +332,17 @@ export async function activate(
         } catch {
           await openInVSCode(worktreePath, true);
         }
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        await new Promise((resolve) => setTimeout(resolve, 1200));
       }
 
-      // Mark session as read
-      if (sessionId) {
-        sessionListProvider.markRead(sessionId);
+      // Use OS `open` to route the URI to the currently focused window,
+      // not the extension host window (avoids duplicate tabs).
+      try {
+        await exec(`open ${shellQuote(claudeUri)}`, { timeout: 5000 });
+      } catch {
+        // Fallback to VS Code API
+        await vscode.env.openExternal(vscode.Uri.parse(claudeUri));
       }
-
-      // Open the specific session in Claude Code
-      const params = sessionId ? `?session=${encodeURIComponent(sessionId)}` : '';
-      const uri = vscode.Uri.parse(`vscode://anthropic.claude-code/open${params}`);
-      await vscode.env.openExternal(uri);
     },
   );
 

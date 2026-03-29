@@ -189,9 +189,20 @@ export class SessionScanner {
           if (isSessionAlive || hookAge < 300_000) { return 'waiting'; }
         }
         if (hookStatus.status === 'idle') {
+          // Stop hook fires between every tool call AND when the turn
+          // completes. Use the JSONL to distinguish: if the last response
+          // has end_turn, Claude finished its turn → done. Otherwise,
+          // Claude is between tool calls → keep as working.
+          if (this.isLastResponseComplete(tailEvents)) {
+            return 'done';
+          }
+          // Last response didn't end with end_turn — Claude is between
+          // tool calls (can think 60+ seconds). Keep working if alive.
+          if (isSessionAlive) {
+            return 'working';
+          }
+          // Process not alive: brief grace for detection lag, then done.
           if (hookAge < 5_000) {
-            // Idle for < 5s — likely a brief inter-turn gap (Stop fires
-            // between every tool call). Keep as "working" to avoid flicker.
             return 'working';
           }
           return 'done';
