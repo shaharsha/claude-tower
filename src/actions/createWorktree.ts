@@ -67,8 +67,11 @@ export async function createWorktree(
       const worktreePath = path.join(worktreeDir, branch.replace(/\//g, '-'));
       const mainBranch = await getMainBranchName(projectPath!);
 
+      // Fetch latest from remote before branching
+      await exec(`git fetch origin ${shellQuote(mainBranch)}`, { cwd: projectPath! }).catch(() => {});
+
       await exec(
-        `git worktree add -b ${shellQuote(branch)} ${shellQuote(worktreePath)} ${shellQuote(mainBranch)}`,
+        `git worktree add -b ${shellQuote(branch)} ${shellQuote(worktreePath)} origin/${shellQuote(mainBranch)}`,
         { cwd: projectPath! },
       );
 

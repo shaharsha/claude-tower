@@ -1,15 +1,34 @@
 # Changelog
 
+## 0.2.6
+
+- **Git fetch before worktree** — new worktrees branch from `origin/main` (latest remote), not stale local main
+- Fetches automatically before creating worktrees (both manual and Linear flows)
+
+## 0.2.5
+
+- Update changelog in published package
+
 ## 0.2.4
 
 - **Ship button** (rocket icon) on completed sessions — opens worktree and sends Claude Code a PR creation prompt
 - Configurable ship prompt: per-project (`.claude-tower/config.json` → `ship.prompt`) or global (VS Code setting `claude-tower.shipPrompt`)
 - Ship hidden on Running/Needs Attention sessions
-- Fix plan approval detection — broader notification hooks (catches all notification types)
-- Trust "working" hooks for 5 minutes (Claude can think for 60+ seconds between tool calls)
-- Auto-open Claude Tower sidebar on VS Code startup (`onStartupFinished`)
-- Multiple focus retries for reliable sidebar open on new windows
-- Project picker when starting from Linear (choose which repo)
+
+## 0.2.3
+
+- Fix plan approval detection — broader notification hooks (catches all notification types, not just `permission_prompt`)
+- Scanner override: detect "waiting" when hook says "working" but CPU is low + unresolved tool_use + no recent writes
+- Auto-reinstall hooks when old matcher-based version detected
+
+## 0.2.2
+
+- Auto-open Claude Tower sidebar on VS Code startup (`onStartupFinished` activation)
+- Trust "working" hooks for 5 minutes (was 30s — Claude thinks for 60s+ between tool calls)
+- Multiple focus retries (0ms, 500ms, 1.5s, 3s) for reliable sidebar open on new windows
+
+## 0.2.1
+
 - Fix marketplace changelog (included in published package)
 
 ## 0.2.0

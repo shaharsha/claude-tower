@@ -675,6 +675,10 @@ async function handleStartFromLinear(
       const worktreePath = path.join(worktreeDir, branch.replace(/\//g, '-'));
       const mainBranch = await getMainBranchName(projectPath);
 
+      // Fetch latest from remote before branching
+      progress.report({ message: 'Fetching latest...' });
+      await exec(`git fetch origin ${shellQuote(mainBranch)}`, { cwd: projectPath }).catch(() => {});
+
       // Clean up stale worktree registrations
       await exec(`git worktree prune`, { cwd: projectPath }).catch(() => {});
 
@@ -713,13 +717,13 @@ async function handleStartFromLinear(
           finalBranch = newBranch;
           finalWorktreePath = path.join(worktreeDir, finalBranch.replace(/\//g, '-'));
           await exec(
-            `git worktree add -b ${shellQuote(finalBranch)} ${shellQuote(finalWorktreePath)} ${shellQuote(mainBranch)}`,
+            `git worktree add -b ${shellQuote(finalBranch)} ${shellQuote(finalWorktreePath)} origin/${shellQuote(mainBranch)}`,
             { cwd: projectPath },
           );
         }
       } else {
         await exec(
-          `git worktree add -b ${shellQuote(branch)} ${shellQuote(worktreePath)} ${shellQuote(mainBranch)}`,
+          `git worktree add -b ${shellQuote(branch)} ${shellQuote(worktreePath)} origin/${shellQuote(mainBranch)}`,
           { cwd: projectPath },
         );
       }
