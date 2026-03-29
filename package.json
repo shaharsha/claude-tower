@@ -2,7 +2,7 @@
   "name": "claude-tower",
   "displayName": "Claude Tower",
   "description": "Control tower for your Claude Code agents. Monitor all sessions across projects and worktrees from one sidebar.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "shaharsha",
   "engines": {
     "vscode": "^1.98.0"
@@ -22,7 +22,7 @@
     "kanban",
     "orchestration"
   ],
-  "activationEvents": [],
+  "activationEvents": ["onStartupFinished"],
   "main": "./dist/extension.js",
   "icon": "resources/tower-icon.png",
   "repository": {

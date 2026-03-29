@@ -477,7 +477,9 @@ export async function activate(
     );
   };
   focusTower();
-  setTimeout(focusTower, 300);
+  setTimeout(focusTower, 500);
+  setTimeout(focusTower, 1500);
+  setTimeout(focusTower, 3000);
 
   // ------------------------------------------------------------------
   // 9. Push all disposables to context.subscriptions

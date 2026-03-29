@@ -175,12 +175,14 @@ export class SessionScanner {
         const hookAge = Date.now() - hookStatus.ts;
 
         if (hookStatus.status === 'working') {
-          // Trust if process alive OR hook was updated recently (< 30s)
-          if (isSessionAlive || hookAge < 30_000) { return 'working'; }
-          // Process dead + hook stale → session crashed, fall through
+          // Trust "working" hooks for up to 5 minutes — Claude can think
+          // for 60+ seconds between tool calls without updating the hook.
+          // Only treat as stale after 5 min with no update AND process dead.
+          if (isSessionAlive || hookAge < 300_000) { return 'working'; }
+          // Process dead + hook > 5 min stale → session crashed, fall through
         }
         if (hookStatus.status === 'waiting') {
-          if (isSessionAlive || hookAge < 30_000) { return 'waiting'; }
+          if (isSessionAlive || hookAge < 300_000) { return 'waiting'; }
         }
         if (hookStatus.status === 'idle') {
           if (hookAge < 5_000) {
