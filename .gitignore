@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.vsix
+.vscode-test/
+*.log
+.claude-tower-debug.log
+.claude-tower/
+.claude/

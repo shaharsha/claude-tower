@@ -1,0 +1,250 @@
+{
+  "name": "claude-tower",
+  "displayName": "Claude Tower",
+  "description": "Control tower for your Claude Code agents. Monitor all sessions across projects and worktrees from one sidebar.",
+  "version": "0.1.0",
+  "publisher": "shaharsha",
+  "engines": {
+    "vscode": "^1.98.0"
+  },
+  "categories": [
+    "AI",
+    "Other",
+    "SCM Providers"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "parallel",
+    "worktree",
+    "sessions",
+    "linear",
+    "kanban",
+    "orchestration"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "icon": "resources/tower-icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shaharsha/claude-tower"
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claude-tower-primary",
+          "title": "Claude Tower",
+          "icon": "resources/tower.svg"
+        }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "claude-tower",
+          "title": "Claude Tower",
+          "icon": "resources/tower.svg"
+        }
+      ]
+    },
+    "views": {
+      "claude-tower": [
+        {
+          "id": "claude-tower.sessions",
+          "name": "Sessions",
+          "when": "!claude-tower.noSecondarySidebar"
+        }
+      ],
+      "claude-tower-primary": [
+        {
+          "id": "claude-tower.sessions-fallback",
+          "name": "Sessions",
+          "when": "claude-tower.noSecondarySidebar"
+        }
+      ]
+    },
+    "viewsWelcome": [],
+    "commands": [
+      {
+        "command": "claude-tower.openSettings",
+        "title": "Open Settings",
+        "icon": "$(gear)",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.createWorktree",
+        "title": "New Worktree",
+        "icon": "$(add)",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.newSession",
+        "title": "New Chat",
+        "icon": "$(comment-discussion)",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.openWorktree",
+        "title": "Open in VS Code",
+        "icon": "$(link-external)",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.openSession",
+        "title": "Open Chat",
+        "icon": "$(arrow-right)",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.removeWorktree",
+        "title": "Remove Worktree",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.pinProject",
+        "title": "Pin Project",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.hideProject",
+        "title": "Hide Project",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.connectLinear",
+        "title": "Connect Linear",
+        "icon": "$(link)",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.disconnectLinear",
+        "title": "Disconnect Linear",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.configureLinearBacklog",
+        "title": "Configure Linear Backlog",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.startFromLinear",
+        "title": "Start from Linear Ticket",
+        "icon": "$(bookmark)",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.loadMoreSessions",
+        "title": "Load More Sessions",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.newAction",
+        "title": "New...",
+        "icon": "$(add)",
+        "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.markRead",
+        "title": "Mark as Read",
+        "icon": "$(check)",
+        "category": "Claude Tower"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "claude-tower.newAction",
+          "when": "view =~ /^claude-tower/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "claude-tower.refresh",
+          "when": "view =~ /^claude-tower/",
+          "group": "navigation@2"
+        },
+        {
+          "command": "claude-tower.openSettings",
+          "when": "view =~ /^claude-tower/",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "claude-tower.openSession",
+          "when": "viewItem == session",
+          "group": "inline@1"
+        },
+        {
+          "command": "claude-tower.removeWorktree",
+          "when": "viewItem == session",
+          "group": "context@1"
+        },
+        {
+          "command": "claude-tower.newSession",
+          "when": "viewItem == ready-worktree",
+          "group": "inline@1"
+        },
+        {
+          "command": "claude-tower.removeWorktree",
+          "when": "viewItem == ready-worktree",
+          "group": "context@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Claude Tower",
+      "properties": {
+        "claude-tower.notifications.waiting": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notification when a session needs approval"
+        },
+        "claude-tower.notifications.done": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notification when a session finishes"
+        },
+        "claude-tower.notifications.error": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notification when a session errors"
+        },
+        "claude-tower.pollIntervalMs": {
+          "type": "number",
+          "default": 3000,
+          "description": "How often to check session status (ms)"
+        },
+        "claude-tower.linearPollIntervalMs": {
+          "type": "number",
+          "default": 60000,
+          "description": "How often to refresh Linear backlog (ms)"
+        },
+        "claude-tower.recentDays": {
+          "type": "number",
+          "default": 7,
+          "description": "Show projects with activity in the last N days"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "test": "node --import tsx --test test/unit/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.98.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "@linear/sdk": "^28.0.0"
+  }
+}
