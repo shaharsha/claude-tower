@@ -175,9 +175,13 @@ export class SessionScanner {
         const hookAge = Date.now() - hookStatus.ts;
 
         if (hookStatus.status === 'working') {
+          // Check if the session is actually waiting for approval despite
+          // hook saying "working" (plan approval doesn't always fire Notification)
+          if (!isSessionActive && this.hasUnresolvedToolUse(tailEvents) && !isRecent) {
+            return 'waiting';
+          }
           // Trust "working" hooks for up to 5 minutes — Claude can think
           // for 60+ seconds between tool calls without updating the hook.
-          // Only treat as stale after 5 min with no update AND process dead.
           if (isSessionAlive || hookAge < 300_000) { return 'working'; }
           // Process dead + hook > 5 min stale → session crashed, fall through
         }

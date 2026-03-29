@@ -45,7 +45,7 @@ export function installHooks(): void {
       { matcher: '', hooks: [{ type: 'command', command: writeCmd('idle'), timeout: 2000 }] },
     ],
     Notification: [
-      { matcher: 'permission_prompt', hooks: [{ type: 'command', command: writeCmd('waiting'), timeout: 2000 }] },
+      { matcher: '', hooks: [{ type: 'command', command: writeCmd('waiting'), timeout: 2000 }] },
     ],
     SessionEnd: [
       { matcher: '', hooks: [{ type: 'command', command: rmCmd, timeout: 2000 }] },
@@ -98,11 +98,12 @@ export function areHooksInstalled(): boolean {
   const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
   try {
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-    const hooks = settings.hooks?.UserPromptSubmit;
+    const hooks = settings.hooks?.Notification;
+    // Check that Notification hook uses empty matcher (catches all notifications)
+    // Old versions used 'permission_prompt' matcher which misses plan approval
     return Array.isArray(hooks) && hooks.some(
-      (h: any) => h.hooks?.some?.((hh: any) =>
-        hh.command?.includes?.('.claude-tower/') && hh.command?.includes?.('grep'),
-      ),
+      (h: any) => h.matcher === '' &&
+        h.hooks?.some?.((hh: any) => hh.command?.includes?.('.claude-tower/')),
     );
   } catch {
     return false;
