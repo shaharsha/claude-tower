@@ -5,7 +5,13 @@
 - `F5` in VS Code — launches Extension Development Host for testing
 - `npx vsce package` — creates `.vsix` for local install
 - `npx vsce publish --pat <PAT>` — publish to VS Code Marketplace (publisher: `shaharsha`)
-- Bump `version` in `package.json` before each publish (marketplace rejects duplicate versions)
+
+## Deploy checklist
+- IMPORTANT: Before every publish, you MUST:
+  1. Bump `version` in `package.json` (marketplace rejects duplicate versions)
+  2. Update `CHANGELOG.md` with what changed in this version
+  3. Commit and push to GitHub
+  4. Then publish with `npx vsce publish --pat <PAT>`
 
 ## Architecture
 - Single-view extension: Sessions panel in the secondary sidebar
