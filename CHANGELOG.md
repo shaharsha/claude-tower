@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.4
+
+- **Ship button** (rocket icon) on completed sessions — opens worktree and sends Claude Code a PR creation prompt
+- Configurable ship prompt: per-project (`.claude-tower/config.json` → `ship.prompt`) or global (VS Code setting `claude-tower.shipPrompt`)
+- Ship hidden on Running/Needs Attention sessions
+- Fix plan approval detection — broader notification hooks (catches all notification types)
+- Trust "working" hooks for 5 minutes (Claude can think for 60+ seconds between tool calls)
+- Auto-open Claude Tower sidebar on VS Code startup (`onStartupFinished`)
+- Multiple focus retries for reliable sidebar open on new windows
+- Project picker when starting from Linear (choose which repo)
+- Fix marketplace changelog (included in published package)
+
 ## 0.2.0
 
 Major architecture overhaul — single Sessions view with reliable status detection.
