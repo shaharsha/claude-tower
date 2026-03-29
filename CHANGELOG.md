@@ -1,27 +1,52 @@
 # Changelog
 
+## 0.2.0
+
+Major architecture overhaul — single Sessions view with reliable status detection.
+
+### Session Monitoring
+- **Hook-based status detection** — installs Claude Code lifecycle hooks for definitive working/idle/waiting signals
+- **CPU monitoring** — reads `~/.claude/sessions/<PID>.json` registration files, single `ps -p` call for CPU
+- **JSONL heuristics** — fallback for sessions without hooks
+- **Auto-read detection** — sessions auto-mark as read when opened in any VS Code window
+- **Progressive loading** — sessions appear instantly from cache, fresh data loads in background
+- **Live elapsed timers** — per-item refresh (no loading indicator flicker)
+
+### Session Groups
+- **Running** — live elapsed counter, green play icon
+- **Needs Attention** — waiting for approval or errors, yellow bell-dot icon
+- **To Review** — completed but unread, blue eye icon
+- **Recent** — reviewed within last 2 hours, clock icon
+- **Done** — older completed sessions, dimmed check icon
+- **New Worktrees** — worktrees created but not yet started, purple git-branch icon
+
+### Actions
+- **[+] button** — New Chat, New Worktree, Start from Linear
+- **Project picker** — choose which repo to start in (for multi-project setups)
+- **Open Chat** — inline button to focus window + open specific session
+- **Remove Worktree** — right-click context menu with confirmation
+- **Load More** — paginated Done group (20 at a time)
+
+### Linear Integration
+- **Single GraphQL query** — fetches all tickets in one call (sub-second)
+- **Inline filters** — team, status, assignee dropdowns with persistent selections
+- **Free text search** — filter by title, ID, or description
+- **Smart prompts** — ticket context with images, no redundant instructions
+- **Branch conflict handling** — reuse existing or create suffixed branch
+- **Proper attachment filenames** — extracted from markdown alt text, deduplicated
+
+### UX
+- Timing format: precise for Running (2m 30s), compact for others (2m, 1h)
+- Color-coded bullets: green (running), yellow (waiting), red (error), blue (to review), dimmed (done)
+- Loading state on startup (no empty state flash)
+- Cached sessions for instant startup on subsequent opens
+
 ## 0.1.0
 
 Initial release.
 
-- Board view with Backlog / In Progress / Review / Done columns
-- Auto-discovery of Claude Code sessions from `~/.claude/projects/`
-- Live session status detection (working, waiting, done, error, idle)
-- Approval preview — see what Claude is asking without switching windows
-- Diff stats on completed tasks
-- One-click navigation to any session
-- Task creation — worktree or same-workspace mode
-- Ship flow — Claude-assisted or quick commit + push + PR
-- Archive with worktree cleanup
-- Status bar with ambient session counts
-- Activity bar badge for attention-needing items
-- Toast notifications with 5-second batching
-- "While you were away" activity summary
-- Custom prompt templates (`.claude-tower/prompt-template.md`)
-- Lifecycle hooks — postCreate and preArchive scripts
-- Settings webview for all configuration
-- Optional Linear integration
-  - OAuth via Linear Connect extension
-  - Backlog from Linear tickets
-  - One-click start with ticket context and images
-  - Two-way status sync
+- Board view with task columns
+- Auto-discovery of Claude Code sessions
+- Linear integration with OAuth
+- Worktree management
+- Status bar and notifications
