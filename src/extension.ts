@@ -576,10 +576,24 @@ async function handleStartFromLinear(
     if (!linearAuth.isConnected()) { return; }
   }
 
-  const projectPath = getProjectPath();
-  if (!projectPath) {
-    vscode.window.showErrorMessage('No workspace folder open.');
-    return;
+  // Pick which project/repo to create the worktree in
+  let projectPath: string | undefined;
+  const projects = stateManager.getProjects().filter((p) => p.worktrees.length > 0);
+  if (projects.length === 0) {
+    projectPath = getProjectPath();
+    if (!projectPath) {
+      vscode.window.showErrorMessage('No project found.');
+      return;
+    }
+  } else if (projects.length === 1) {
+    projectPath = projects[0].path;
+  } else {
+    const picked = await vscode.window.showQuickPick(
+      projects.map((p) => ({ label: p.name, detail: p.path, path: p.path })),
+      { placeHolder: 'Which project?', title: 'Start from Linear' },
+    );
+    if (!picked) { return; }
+    projectPath = picked.path;
   }
 
   let ticket = ticketArg;
