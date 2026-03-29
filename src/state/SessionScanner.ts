@@ -180,25 +180,30 @@ export class SessionScanner {
           if (!isSessionActive && this.hasUnresolvedToolUse(tailEvents) && !isRecent) {
             return 'waiting';
           }
-          // Trust "working" hooks for up to 5 minutes — Claude can think
-          // for 60+ seconds between tool calls without updating the hook.
-          if (isSessionAlive || hookAge < 300_000) { return 'working'; }
-          // Process dead + hook > 5 min stale → session crashed, fall through
+          // Trust recent working hooks (< 5 min). During active work,
+          // PreToolUse fires frequently, keeping the hook fresh.
+          if (hookAge < 300_000) { return 'working'; }
+          // Hook is stale (> 5 min). A long-running tool would show CPU.
+          if (isSessionActive) { return 'working'; }
+          // Stale + no CPU → interrupted/crashed. Fall through to heuristics.
         }
         if (hookStatus.status === 'waiting') {
           if (isSessionAlive || hookAge < 300_000) { return 'waiting'; }
         }
         if (hookStatus.status === 'idle') {
-          // Stop hook fires between every tool call AND when the turn
-          // completes. Use the JSONL to distinguish: if the last response
-          // has end_turn, Claude finished its turn → done. Otherwise,
-          // Claude is between tool calls → keep as working.
+          // Stop fires between every tool call AND when the turn completes.
+          // If the last response has end_turn → session is genuinely done.
           if (this.isLastResponseComplete(tailEvents)) {
             return 'done';
           }
-          // Last response didn't end with end_turn — Claude is between
-          // tool calls (can think 60+ seconds). Keep working if alive.
-          if (isSessionAlive) {
+          // CPU active → definitely still working
+          if (isSessionActive) {
+            return 'working';
+          }
+          // No end_turn + no CPU: either between tool calls (Claude thinking
+          // server-side, 30–90s typical) or interrupted. 2-min grace covers
+          // most thinking periods; interrupted sessions transition after.
+          if (isSessionAlive && hookAge < 120_000) {
             return 'working';
           }
           // Process not alive: brief grace for detection lag, then done.

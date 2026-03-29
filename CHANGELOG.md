@@ -1,8 +1,12 @@
 # Changelog
 
+## 0.2.8
+
+- **Fix interrupted sessions stuck in Running** — stale "working" hooks (>5 min, no CPU) now fall through to JSONL heuristics instead of being trusted forever
+- **Fix idle detection** — uses `end_turn` from JSONL to distinguish "between tool calls" from "turn completed"; 2-min grace for server-side thinking periods
+
 ## 0.2.7
 
-- **Fix status oscillation** — active sessions no longer jump between Running and Recent; uses JSONL `end_turn` signal to distinguish "between tool calls" from "turn completed"
 - **Ship button sends prompt to existing session** — resumes the session with `?session=<id>&prompt=...` instead of creating a new empty session
 - **Fix duplicate Claude Code tabs** — routes `vscode://` URIs through macOS `open` command to target the focused window, not the extension host window
 
