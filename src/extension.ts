@@ -118,6 +118,37 @@ export async function activate(
     () => sessionListProvider.loadMore(),
   );
 
+  const shipSessionCmd = vscode.commands.registerCommand(
+    'claude-tower.shipSession',
+    async (arg?: any) => {
+      const worktreePath = arg?._worktreePath;
+      if (!worktreePath) { return; }
+
+      // Focus or open the worktree's VS Code window
+      const currentWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (worktreePath !== currentWorkspace) {
+        try {
+          await focusVSCodeWindow(worktreePath);
+        } catch {
+          await openInVSCode(worktreePath, true);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      // Ship prompt: check project config → VS Code setting → default
+      const config = getConfig(worktreePath);
+      const projectPrompt = config?.ship?.prompt;
+      const globalPrompt = vscode.workspace.getConfiguration('claude-tower').get<string>('shipPrompt');
+      const prompt = projectPrompt ?? globalPrompt
+        ?? 'Create a PR for the changes in this branch. Write a clear title and description based on the commits and diff.';
+
+      const uri = vscode.Uri.parse(
+        `vscode://anthropic.claude-code/open?prompt=${encodeURIComponent(prompt)}`,
+      );
+      await vscode.env.openExternal(uri);
+    },
+  );
+
   const markReadCmd = vscode.commands.registerCommand(
     'claude-tower.markRead',
     (arg?: any) => {
@@ -499,6 +530,7 @@ export async function activate(
     // Core commands
     refreshCmd,
     loadMoreSessionsCmd,
+    shipSessionCmd,
     markReadCmd,
     newActionCmd,
     openSettingsCmd,

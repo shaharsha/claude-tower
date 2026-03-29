@@ -2,7 +2,7 @@
   "name": "claude-tower",
   "displayName": "Claude Tower",
   "description": "Control tower for your Claude Code agents. Monitor all sessions across projects and worktrees from one sidebar.",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "publisher": "shaharsha",
   "engines": {
     "vscode": "^1.98.0"
@@ -153,6 +153,12 @@
         "title": "Mark as Read",
         "icon": "$(check)",
         "category": "Claude Tower"
+      },
+      {
+        "command": "claude-tower.shipSession",
+        "title": "Ship",
+        "icon": "$(rocket)",
+        "category": "Claude Tower"
       }
     ],
     "menus": {
@@ -176,12 +182,17 @@
       "view/item/context": [
         {
           "command": "claude-tower.openSession",
-          "when": "viewItem == session",
+          "when": "viewItem =~ /^session/",
           "group": "inline@1"
         },
         {
-          "command": "claude-tower.removeWorktree",
+          "command": "claude-tower.shipSession",
           "when": "viewItem == session",
+          "group": "inline@2"
+        },
+        {
+          "command": "claude-tower.removeWorktree",
+          "when": "viewItem =~ /^session/",
           "group": "context@1"
         },
         {
@@ -228,6 +239,11 @@
           "type": "number",
           "default": 7,
           "description": "Show projects with activity in the last N days"
+        },
+        "claude-tower.shipPrompt": {
+          "type": "string",
+          "default": "",
+          "description": "Custom prompt for the Ship button. Leave empty for default. Can also be set per-project in .claude-tower/config.json under ship.prompt"
         }
       }
     }

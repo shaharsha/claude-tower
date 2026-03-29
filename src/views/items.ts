@@ -101,7 +101,10 @@ export class SessionListItem extends vscode.TreeItem {
     super(label, vscode.TreeItemCollapsibleState.None);
     this.session = session;
     this.worktreePath = worktreePath;
-    this.contextValue = 'session';
+    // Differentiate running from completed for context menu (Ship only on completed)
+    this.contextValue = (session.status === 'working' || session.status === 'waiting')
+      ? 'session-active'
+      : 'session';
     const STATUS_COLORS: Record<string, string> = {
       working: 'charts.green',
       waiting: 'charts.yellow',

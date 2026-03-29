@@ -169,6 +169,9 @@ export interface TowerConfig {
     baseBranch?: string;
     draft?: boolean;
   };
+  ship?: {
+    prompt?: string;
+  };
 }
 
 // ============================================================
