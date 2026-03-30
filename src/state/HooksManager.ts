@@ -25,8 +25,10 @@ export function installHooks(): void {
   fs.mkdirSync(STATUS_DIR, { recursive: true });
 
   // Hook commands read session_id from stdin JSON (piped by Claude Code)
+  // Atomic write: write to .tmp then mv (mv is atomic on same filesystem).
+  // Prevents race where the scanner reads a truncated/empty file mid-write.
   const writeCmd = (status: HookSessionStatus) =>
-    `SID=$(cat | grep -o '"session_id":"[^"]*"' | head -1 | cut -d'"' -f4); [ -n "$SID" ] && echo '{"status":"${status}","ts":'$(date +%s000)'}' > "${STATUS_DIR}/$SID.json"`;
+    `SID=$(cat | grep -o '"session_id":"[^"]*"' | head -1 | cut -d'"' -f4); [ -n "$SID" ] && echo '{"status":"${status}","ts":'$(date +%s000)'}' > "${STATUS_DIR}/$SID.json.tmp" && mv "${STATUS_DIR}/$SID.json.tmp" "${STATUS_DIR}/$SID.json"`;
 
   const rmCmd =
     `SID=$(cat | grep -o '"session_id":"[^"]*"' | head -1 | cut -d'"' -f4); [ -n "$SID" ] && rm -f "${STATUS_DIR}/$SID.json"`;
@@ -76,34 +78,46 @@ export function installHooks(): void {
 
 /**
  * Read the hook-written status for a session.
+ * Caches last good read to handle the race condition where the file is
+ * briefly empty/truncated while a hook command rewrites it (non-atomic echo >).
  */
+const hookReadCache = new Map<string, { status: HookSessionStatus; ts: number }>();
+
 export function readHookStatus(sessionId: string): { status: HookSessionStatus; ts: number } | undefined {
   const filePath = path.join(STATUS_DIR, `${sessionId}.json`);
   try {
     const raw = fs.readFileSync(filePath, 'utf-8');
     const data = JSON.parse(raw);
     if (data.status && data.ts) {
+      hookReadCache.set(sessionId, data);
       return data;
     }
-  } catch {
-    // File doesn't exist or is malformed
+  } catch (err: any) {
+    // ENOENT = file deleted (SessionEnd) or never created → clear cache
+    if (err?.code === 'ENOENT') {
+      hookReadCache.delete(sessionId);
+      return undefined;
+    }
+    // Other error (empty file, invalid JSON) = transient race condition
+    // Return last known good value
+    return hookReadCache.get(sessionId);
   }
   return undefined;
 }
 
 /**
- * Check if hooks are already installed (with the stdin-based version).
+ * Check if hooks are already installed (with the latest atomic-write version).
  */
 export function areHooksInstalled(): boolean {
   const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
   try {
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
     const hooks = settings.hooks?.Notification;
-    // Check that Notification hook uses empty matcher (catches all notifications)
-    // Old versions used 'permission_prompt' matcher which misses plan approval
+    // Check that Notification hook uses empty matcher AND atomic writes (mv).
+    // Old versions used non-atomic `echo > file` which causes race conditions.
     return Array.isArray(hooks) && hooks.some(
       (h: any) => h.matcher === '' &&
-        h.hooks?.some?.((hh: any) => hh.command?.includes?.('.claude-tower/')),
+        h.hooks?.some?.((hh: any) => hh.command?.includes?.('.json.tmp') && hh.command?.includes?.('.claude-tower/')),
     );
   } catch {
     return false;

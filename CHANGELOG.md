@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.11
+
+- **WebviewView sidebar** — card-based session list with colored accents, two-line layout, hover-reveal actions, collapsible groups, right-click context menu, double-click to open
+- **Fix hook file race condition** — atomic writes (`.tmp` + `mv`) + read cache. Root cause of Running ↔ Recent oscillation.
+- **Fix completed sessions stuck in Running** — idle hook now checks JSONL completion before alive grace period
+- **Strip "You are working on:" prefix** from Linear-started session titles
+- **Auto-reinstall hooks** when old non-atomic version detected
+- **175 tests** — real Claude Code behavior simulations (rapid tool loops, thinking gaps, crashes, race conditions)
+
+## 0.2.10
+
+- **Fix status oscillation** — trust fresh hooks unconditionally instead of overriding with JSONL heuristics. Fixes active sessions jumping between Running/Needs Attention/Recent.
+- **Remove CPU reliance** — status detection now uses hooks + process alive + JSONL only. CPU readings were bursty and caused false signals.
+- **Extended trust for long tools** — stale working hooks trusted up to 10 min when process is alive (covers long subagent tasks).
+- **Unit tests** — 122 tests covering all status detection paths, including timeline-based scenarios for tool loops, permission prompts, subagents, interrupts, errors, and multi-turn conversations.
+- **CI/CD** — GitHub Actions: tests on PRs, auto-publish to marketplace on merge when version changes. Branch protection via ruleset.
+
 ## 0.2.9
 
 - **Ship button pastes prompt into existing session** — copies ship prompt to clipboard, focuses the session, and simulates ⌘V to paste into Claude Code's input field. Falls back to a toast if paste fails.

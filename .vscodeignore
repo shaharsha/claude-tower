@@ -3,6 +3,7 @@ src/**
 test/**
 node_modules/**
 !node_modules/@linear/sdk/**
+!node_modules/@vscode/codicons/dist/**
 .gitignore
 tsconfig.json
 esbuild.config.mjs

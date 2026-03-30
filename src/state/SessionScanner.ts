@@ -99,7 +99,8 @@ export class SessionScanner {
 
       // Get summary from index if available
       const indexEntry = summaryMap.get(sessionId);
-      const summary = indexEntry?.summary ?? this.deriveSummary(headEvents, tailEvents);
+      const rawSummary = indexEntry?.summary ?? this.deriveSummary(headEvents, tailEvents);
+      const summary = rawSummary.replace(/^You are working on:\s*/i, '');
       const messageCount = indexEntry?.messageCount ?? this.countMessages(tailEvents);
 
       // Determine statusSince: mtime of file is a reasonable proxy
@@ -187,13 +188,14 @@ export class SessionScanner {
         }
         if (hookStatus.status === 'idle') {
           // Stop fires between every tool call AND when the turn completes.
-          // If the last response has end_turn → session is genuinely done.
+          // Check JSONL: if end_turn is the last response → genuinely done.
+          // Between tool calls, the last event is a tool_result (user type)
+          // so isLastResponseComplete returns false → falls through to "working".
           if (this.isLastResponseComplete(tailEvents)) {
             return 'done';
           }
-          // No end_turn + process alive + recent hook → between tool calls
-          // (Claude thinking server-side, 30–90s typical). 2-min grace covers
-          // most thinking periods; interrupted sessions transition after.
+          // No end_turn: between tool calls or interrupted. Process alive + recent
+          // hook → likely thinking server-side. 2-min grace covers long thinking.
           if (isSessionAlive && hookAge < 120_000) {
             return 'working';
           }

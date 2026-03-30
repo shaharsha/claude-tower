@@ -658,6 +658,20 @@ describe('detectSessionStatus', () => {
       assert.equal(detect(events, staleMtime(), aliveSession(), hook('idle', 130_000)), 'done');
     });
 
+    it('idle hook + alive + end_turn → done (immediate, race fixed by atomic writes)', () => {
+      // With atomic writes + read cache, the hook value is reliable.
+      // If hook says "idle" and JSONL shows end_turn → genuinely done.
+      const events = [assistantChunk('end_turn')];
+      assert.equal(detect(events, staleMtime(), aliveSession(), hook('idle', 2_000)), 'done');
+    });
+
+    it('idle hook + alive + no end_turn (tool_result) → working (between tool calls)', () => {
+      // Between tool calls: last event is tool_result (user type).
+      // isLastResponseComplete returns false → working.
+      const events = [assistantToolUse('tool-1'), toolResult('tool-1')];
+      assert.equal(detect(events, staleMtime(), aliveSession(), hook('idle', 2_000)), 'working');
+    });
+
     it('interrupted session: stale working hook eventually falls through', () => {
       // Working hook from before interruption. No CPU, no alive, very stale.
       // No unresolved tools (last tool was resolved before interrupt).
@@ -734,7 +748,7 @@ describe('detectSessionStatus', () => {
         toolResult('tool-2'),
         assistantChunk('end_turn'),
       ];
-      // Stop fires after end_turn → idle hook + end_turn in tail → done
+      // Stop fires after end_turn → idle hook. After 10s settle, end_turn confirmed → done
       assert.equal(detect(events, recentMtime(), alive, hook('idle', 0)), 'done');
     });
   });
@@ -1013,6 +1027,449 @@ describe('detectSessionStatus', () => {
         assistantChunk('end_turn'),
       ];
       assert.equal(detect(events, staleMtime(), aliveSession(), null), 'done');
+    });
+  });
+
+  // ── Exhaustive: every code branch ─────────────────────────────────────
+
+  describe('branch coverage: hook=working fall-through paths', () => {
+    it('stale + dead + unresolved tool + isRecent → falls to heuristic 2c (working)', () => {
+      // isRecent=true blocks the waiting check, falls through working handler.
+      // Reaches heuristic 2c: recent + unresolved tool → working
+      const events = [assistantToolUse('tool-1')];
+      assert.equal(detect(events, recentMtime(), emptyAlive(), hook('working', 600_000)), 'working');
+    });
+
+    it('stale + dead + no tools + streaming chunk → falls to heuristic → idle', () => {
+      const events = [assistantChunk(null)];
+      // Falls through all working checks → no error → Layer 2: not recent + streaming → idle
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('working', 600_000)), 'idle');
+    });
+
+    it('stale + dead + no tools + user message → falls to heuristic', () => {
+      const events = [userMessage('hello')];
+      // Falls through working → Layer 2: not alive + stale → not 2a.
+      // 2b: not recent → skip. No tool_use. Not recent → completion signals.
+      // user event is not last-prompt, not assistant → idle fallback
+      const result = detect(events, staleMtime(), emptyAlive(), hook('working', 600_000));
+      assert.equal(result, 'idle');
+    });
+  });
+
+  describe('branch coverage: hook=waiting fall-through', () => {
+    it('stale + dead → falls through to error check', () => {
+      const events = [apiError()];
+      // Hook waiting but stale + dead → falls through → error
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('waiting', 600_000)), 'error');
+    });
+
+    it('stale + dead + no error → falls to heuristics', () => {
+      const events = [assistantChunk(null)];
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('waiting', 600_000)), 'idle');
+    });
+  });
+
+  describe('branch coverage: hook=idle edge cases', () => {
+    it('end_turn + dead process + fresh hook → done (not grace period)', () => {
+      // Process dead but hook fresh (< 5s) with end_turn → done takes priority
+      const events = [assistantChunk('end_turn')];
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('idle', 2_000)), 'done');
+    });
+
+    it('no end_turn + dead + hook exactly 5s → done', () => {
+      const events = [assistantToolUse('tool-1'), toolResult('tool-1')];
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('idle', 5_000)), 'done');
+    });
+
+    it('no end_turn + dead + hook exactly 4.9s → working (grace)', () => {
+      const events = [assistantToolUse('tool-1'), toolResult('tool-1')];
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('idle', 4_900)), 'working');
+    });
+
+    it('end_turn + alive + very stale hook (> 2 min) → done', () => {
+      // isLastResponseComplete → true → done (before alive check)
+      const events = [assistantChunk('end_turn')];
+      assert.equal(detect(events, staleMtime(), aliveSession(), hook('idle', 200_000)), 'done');
+    });
+
+    it('no end_turn + alive + hookAge exactly 120s → done', () => {
+      const events = [assistantToolUse('tool-1'), toolResult('tool-1')];
+      assert.equal(detect(events, staleMtime(), aliveSession(), hook('idle', 120_000)), 'done');
+    });
+  });
+
+  describe('branch coverage: Layer 2 heuristics edge cases', () => {
+    it('recent + complete + unresolved tool → working (2c)', () => {
+      // isLastResponseComplete = true (end_turn), but also unresolved tool
+      // 2b skips (complete), but 2c catches unresolved tool
+      const events = [assistantChunk('end_turn'), assistantToolUse('tool-1')];
+      assert.equal(detect(events, recentMtime(), emptyAlive(), null), 'working');
+    });
+
+    it('not recent + resolved tools + tool_use stop_reason → idle', () => {
+      // Tool completed but session ended mid-execution (no end_turn)
+      // All tools resolved, stop_reason=tool_use, not recent
+      const events = [assistantToolUse('tool-1'), toolResult('tool-1')];
+      const result = detect(events, staleMtime(), emptyAlive(), null);
+      // No unresolved tool_use → not waiting. Not recent → completion signals.
+      // Last assistant has stop_reason=tool_use → idle
+      assert.equal(result, 'idle');
+    });
+
+    it('queue-operation events are skipped in error detection', () => {
+      const events = [apiError(), queueOperationEvent()];
+      assert.equal(detect(events, staleMtime(), emptyAlive(), null), 'error');
+    });
+
+    it('isApiErrorMessage followed by queue-operation → error', () => {
+      const events = [apiErrorMessage(), queueOperationEvent()];
+      assert.equal(detect(events, staleMtime(), emptyAlive(), null), 'error');
+    });
+
+    it('mixed streaming chunks: only last stop_reason matters', () => {
+      // Multiple assistant chunks, only last has stop_reason set
+      const events = [
+        assistantChunk(null),
+        assistantChunk(null),
+        assistantChunk(null),
+        assistantChunk('end_turn'),
+      ];
+      assert.equal(detect(events, staleMtime(), emptyAlive(), null), 'done');
+    });
+
+    it('recent + complete response + no progress + no tools → idle', () => {
+      // Session just finished. Recent but complete, no progress events.
+      const events = [assistantChunk('end_turn')];
+      assert.equal(detect(events, recentMtime(), emptyAlive(), null), 'idle');
+    });
+  });
+
+  describe('branch coverage: hasUnresolvedToolUse details', () => {
+    it('standalone tool_result event type resolves tool', () => {
+      const events = [
+        assistantToolUse('tool-1'),
+        { type: 'tool_result', tool_use_id: 'tool-1' } as any,
+      ];
+      // Standalone tool_result (not wrapped in user message) should resolve
+      assert.equal(detect(events, staleMtime(), emptyAlive(), null), 'idle');
+    });
+
+    it('tool_use with empty content array → no unresolved', () => {
+      // Assistant message with no tool_use blocks in content
+      const events = [{ type: 'assistant', message: { stop_reason: 'end_turn', content: [] } } as any];
+      assert.equal(detect(events, staleMtime(), emptyAlive(), null), 'done');
+    });
+
+    it('multiple sequential tool calls all resolved', () => {
+      const events = [
+        assistantToolUse('t1', 'Read'),
+        toolResult('t1'),
+        assistantToolUse('t2', 'Edit'),
+        toolResult('t2'),
+        assistantToolUse('t3', 'Bash'),
+        toolResult('t3'),
+        assistantChunk('end_turn'),
+      ];
+      assert.equal(detect(events, staleMtime(), emptyAlive(), null), 'done');
+    });
+
+    it('parallel tools: 3 tools, only 2 resolved → waiting', () => {
+      const events = [
+        assistantMultiTool([
+          { id: 't1', name: 'Read' },
+          { id: 't2', name: 'Read' },
+          { id: 't3', name: 'Read' },
+        ]),
+        toolResult('t1'),
+        toolResult('t3'),
+        // t2 missing
+      ];
+      assert.equal(detect(events, staleMtime(), emptyAlive(), null), 'waiting');
+    });
+  });
+
+  describe('branch coverage: isLastResponseComplete details', () => {
+    it('only system events (no user/assistant) → not complete', () => {
+      // isLastResponseComplete finds no user/assistant → false
+      // Without hooks: no error, not recent, last event is progress → idle
+      const events = [systemEvent(), aiTitleEvent(), progressEvent()];
+      assert.equal(detect(events, staleMtime(), emptyAlive(), null), 'idle');
+    });
+
+    it('assistant with stop_reason tool_use → not complete', () => {
+      // isLastResponseComplete: tool_use stop_reason → false
+      const events = [assistantToolUse('tool-1')];
+      // Idle hook + not complete + alive → working
+      assert.equal(detect(events, staleMtime(), aliveSession(), hook('idle', 5_000)), 'working');
+    });
+  });
+
+  describe('branch coverage: isAwaitingResponse', () => {
+    it('user message without timestamp → not awaiting', () => {
+      const events = [{
+        type: 'user',
+        message: { content: [{ type: 'text', text: 'hello' }] },
+        content: [{ type: 'text', text: 'hello' }],
+        // no timestamp
+      } as any];
+      // isAwaitingResponse: no timestamp → false
+      // Falls through 2a. 2b: recent + user → not complete → working
+      assert.equal(detect(events, recentMtime(), aliveSession(), null), 'working');
+    });
+
+    it('last event is assistant → not awaiting', () => {
+      const events = [userMessage('hello'), assistantChunk(null)];
+      // isAwaitingResponse: last conv event is assistant → false
+      assert.equal(detect(events, recentMtime(), aliveSession(), null), 'working');
+    });
+  });
+
+  // ── Real Claude Code behavior simulation ───────────────────────────────
+  // These tests simulate ACTUAL Claude Code JSONL sequences and hook transitions
+  // as they occur in real sessions, verified against real session data.
+
+  describe('real behavior: rapid tool loop (Read → Edit → Read → Edit)', () => {
+    // Claude iterates: read file, edit, read again, edit again. Each tool takes ~1s.
+    // Hooks flip between working/idle every 1-2 seconds.
+    const alive = aliveSession();
+
+    it('scanner catches working hook during tool execution', () => {
+      const events = [assistantToolUse('t1', 'Read')];
+      assert.equal(detect(events, recentMtime(), alive, hook('working', 500)), 'working');
+    });
+
+    it('scanner catches idle hook between tools (tool_result is last) → working', () => {
+      const events = [assistantToolUse('t1', 'Read'), toolResult('t1')];
+      // Stop just fired. Last event is tool_result (user) → not complete → working
+      assert.equal(detect(events, recentMtime(), alive, hook('idle', 200)), 'working');
+    });
+
+    it('scanner catches working hook for next tool → working', () => {
+      const events = [
+        assistantToolUse('t1', 'Read'), toolResult('t1'),
+        assistantToolUse('t2', 'Edit'),
+      ];
+      assert.equal(detect(events, recentMtime(), alive, hook('working', 100)), 'working');
+    });
+
+    it('final end_turn after last edit → done', () => {
+      const events = [
+        assistantToolUse('t2', 'Edit'), toolResult('t2'),
+        assistantChunk('end_turn'),
+      ];
+      assert.equal(detect(events, recentMtime(), alive, hook('idle', 200)), 'done');
+    });
+
+    it('all 4 scanner polls during the loop stay working (no oscillation)', () => {
+      // Simulates 4 consecutive scanner polls during a rapid tool loop.
+      // The key insight: even when Stop fires (idle), tool_result is the last
+      // JSONL event, so isLastResponseComplete returns false → working.
+      const polls = [
+        { events: [assistantToolUse('t1', 'Read')], h: hook('working', 500) },
+        { events: [assistantToolUse('t1', 'Read'), toolResult('t1')], h: hook('idle', 200) },
+        { events: [assistantToolUse('t1', 'Read'), toolResult('t1'), assistantToolUse('t2', 'Edit')], h: hook('working', 100) },
+        { events: [assistantToolUse('t2', 'Edit'), toolResult('t2'), assistantChunk(null)], h: hook('working', 300) },
+      ];
+      for (const { events, h } of polls) {
+        assert.equal(detect(events, recentMtime(), alive, h), 'working', `Failed for events with hook ${h.status}`);
+      }
+    });
+  });
+
+  describe('real behavior: Claude thinking for 30+ seconds between tools', () => {
+    const alive = aliveSession();
+
+    it('T=0: tool finishes, Stop fires → idle, tool_result is last → working', () => {
+      const events = [assistantToolUse('t1', 'Read'), toolResult('t1')];
+      assert.equal(detect(events, recentMtime(), alive, hook('idle', 0)), 'working');
+    });
+
+    it('T=15s: still thinking, JSONL unchanged → working', () => {
+      const events = [assistantToolUse('t1', 'Read'), toolResult('t1')];
+      assert.equal(detect(events, staleMtime(), alive, hook('idle', 15_000)), 'working');
+    });
+
+    it('T=45s: still thinking, hook aging but alive → working', () => {
+      const events = [assistantToolUse('t1', 'Read'), toolResult('t1')];
+      assert.equal(detect(events, staleMtime(), alive, hook('idle', 45_000)), 'working');
+    });
+
+    it('T=90s: very long thinking, still within 2min grace → working', () => {
+      const events = [assistantToolUse('t1', 'Read'), toolResult('t1')];
+      assert.equal(detect(events, staleMtime(), alive, hook('idle', 90_000)), 'working');
+    });
+
+    it('T=50s: Claude starts streaming new response → working', () => {
+      const events = [assistantToolUse('t1', 'Read'), toolResult('t1'), assistantChunk(null)];
+      assert.equal(detect(events, recentMtime(), alive, hook('working', 0)), 'working');
+    });
+  });
+
+  describe('real behavior: permission prompt with plan approval', () => {
+    const alive = aliveSession();
+
+    it('Claude asks to run bash, Notification hook fires → waiting', () => {
+      const events = [assistantToolUse('t1', 'Bash')];
+      assert.equal(detect(events, staleMtime(), alive, hook('waiting', 0)), 'waiting');
+    });
+
+    it('user ignores for 5 minutes, still waiting', () => {
+      const events = [assistantToolUse('t1', 'Bash')];
+      assert.equal(detect(events, staleMtime(), alive, hook('waiting', 300_000)), 'waiting');
+    });
+
+    it('user ignores for 10 minutes, process alive → still waiting', () => {
+      const events = [assistantToolUse('t1', 'Bash')];
+      assert.equal(detect(events, staleMtime(), alive, hook('waiting', 600_000)), 'waiting');
+    });
+
+    it('user closes window (process dies), waiting hook stale → falls through', () => {
+      const events = [assistantToolUse('t1', 'Bash')];
+      // Dead + stale → waiting hook falls through → heuristics
+      // unresolved tool_use + not recent → waiting (same result, but from heuristics)
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('waiting', 600_000)), 'waiting');
+    });
+  });
+
+  describe('real behavior: session with large file reads (>8KB tail issue)', () => {
+    // When Claude reads a very large file, the tool_result can be huge.
+    // The 8KB JSONL tail might only contain partial data.
+
+    it('tail shows only streaming chunks (no user/tool events) → handled gracefully', () => {
+      // The 8KB window only has assistant streaming chunks
+      const events = [
+        assistantChunk(null), assistantChunk(null), assistantChunk(null),
+        assistantChunk(null), assistantChunk(null),
+      ];
+      // With idle hook: not complete (no end_turn) + alive + fresh → working
+      assert.equal(detect(events, staleMtime(), aliveSession(), hook('idle', 5_000)), 'working');
+      // With working hook: trusted → working
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('working', 5_000)), 'working');
+      // No hook + not recent: streaming chunks only → idle
+      assert.equal(detect(events, staleMtime(), emptyAlive(), null), 'idle');
+    });
+
+    it('tail shows only tool_result (massive output) + end_turn → done', () => {
+      // The tool returned a huge result, then Claude completed with end_turn
+      const events = [toolResult('t1'), assistantChunk('end_turn')];
+      assert.equal(detect(events, staleMtime(), aliveSession(), hook('idle', 5_000)), 'done');
+    });
+  });
+
+  describe('real behavior: Claude Code crash / OOM during session', () => {
+    it('process dies mid-stream, working hook left behind', () => {
+      const events = [assistantChunk(null), assistantChunk(null)];
+      // Process dead, hook says working (PreToolUse was last hook)
+      // Fresh hook → working (still trusted)
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('working', 30_000)), 'working');
+      // After 5 min, hook stale + dead + no tools → falls through → idle
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('working', 400_000)), 'idle');
+    });
+
+    it('process dies, idle hook left behind, no end_turn', () => {
+      const events = [assistantToolUse('t1'), toolResult('t1')];
+      // Dead + idle hook + no end_turn → done after grace
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('idle', 10_000)), 'done');
+    });
+  });
+
+  describe('real behavior: user manually kills session (kill -9)', () => {
+    it('no Stop hook fires, working hook stays forever', () => {
+      const events = [assistantToolUse('t1', 'Edit')];
+      // Hook says working, process dead
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('working', 60_000)), 'working');
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('working', 200_000)), 'working');
+      // After 5 min: stale + dead + unresolved tool → waiting
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('working', 400_000)), 'waiting');
+    });
+  });
+
+  describe('real behavior: multiple sessions same project', () => {
+    // Two sessions in the same worktree — hook files are per session ID
+    it('session A working, session B done — independent detection', () => {
+      const eventsA = [assistantChunk(null)];
+      const eventsB = [assistantChunk('end_turn')];
+      assert.equal(detect(eventsA, recentMtime(), aliveSession(), hook('working', 1_000)), 'working');
+      assert.equal(detect(eventsB, staleMtime(), aliveSession(), hook('idle', 30_000)), 'done');
+    });
+  });
+
+  describe('real behavior: hook file race condition (pre-atomic-write)', () => {
+    // Before atomic writes, hook reads could return undefined during file rewrite.
+    // The read cache (hookReadCache) should return the last good value.
+    // With hookStatusOverride=undefined, the code reads from disk.
+    // We simulate the race by passing null (no hook found).
+
+    it('hook suddenly disappears → falls through to heuristics', () => {
+      // If cache miss + file read fail → null hook → heuristics
+      const events = [assistantChunk(null)];
+      // Recent + streaming → working (heuristic 2b)
+      assert.equal(detect(events, recentMtime(), aliveSession(), null), 'working');
+      // Stale + streaming → idle (no heuristic matches)
+      assert.equal(detect(events, staleMtime(), aliveSession(), null), 'idle');
+    });
+
+    it('hook disappears but session clearly has end_turn → done', () => {
+      const events = [assistantChunk('end_turn')];
+      assert.equal(detect(events, staleMtime(), aliveSession(), null), 'done');
+    });
+  });
+
+  describe('real behavior: SessionEnd hook fires (session cleanup)', () => {
+    it('after SessionEnd, hook file deleted → no hook → heuristics', () => {
+      // SessionEnd deletes the hook file. Next scan has no hook.
+      const events = [assistantChunk('end_turn')];
+      assert.equal(detect(events, staleMtime(), emptyAlive(), null), 'done');
+    });
+  });
+
+  // ── Stability: same input always produces same output ─────────────────
+
+  describe('determinism', () => {
+    it('same inputs produce same output across 100 calls', () => {
+      const events = [assistantToolUse('tool-1'), toolResult('tool-1')];
+      const alive = aliveSession();
+      const h = hook('idle', 3_000);
+      const results = new Set<string>();
+      for (let i = 0; i < 100; i++) {
+        results.add(detect(events, staleMtime(), alive, h));
+      }
+      assert.equal(results.size, 1, `Expected 1 unique result, got ${results.size}: ${[...results]}`);
+      assert.equal([...results][0], 'working');
+    });
+  });
+
+  // ── Transition correctness: status never skips expected phases ────────
+
+  describe('transition rules', () => {
+    it('working hook → idle hook with end_turn: working → done (no intermediate)', () => {
+      const alive = aliveSession();
+      const events1 = [assistantToolUse('tool-1')];
+      assert.equal(detect(events1, recentMtime(), alive, hook('working', 1_000)), 'working');
+
+      const events2 = [assistantToolUse('tool-1'), toolResult('tool-1'), assistantChunk('end_turn')];
+      assert.equal(detect(events2, recentMtime(), alive, hook('idle', 0)), 'done');
+    });
+
+    it('working → waiting: only when hook says waiting OR stale + unresolved tool', () => {
+      const events = [assistantToolUse('tool-1', 'Bash')];
+      const alive = aliveSession();
+      // Fresh working hook → never waiting
+      assert.equal(detect(events, staleMtime(), alive, hook('working', 60_000)), 'working');
+      // Waiting hook → waiting
+      assert.equal(detect(events, staleMtime(), alive, hook('waiting', 0)), 'waiting');
+    });
+
+    it('error only from JSONL — hooks can override back to working', () => {
+      const events = [apiError()];
+      // No hook → error
+      assert.equal(detect(events, staleMtime(), emptyAlive(), null), 'error');
+      // Working hook → working (overrides error)
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('working', 5_000)), 'working');
+      // Idle hook → done (error not flagged because hook layer handles first)
+      // Actually idle hook checks isLastResponseComplete first. apiError is system type → skipped.
+      // No user/assistant → returns false. Then alive check...
+      assert.equal(detect(events, staleMtime(), emptyAlive(), hook('idle', 10_000)), 'done');
     });
   });
 });

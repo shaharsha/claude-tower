@@ -123,7 +123,6 @@ export class SessionListItem extends vscode.TreeItem {
     const context = branch !== projectName ? `${projectName} · ${branch}` : projectName;
     this.contextStr = context;
     if (session.status === 'working' && workingSince) {
-      // Running: precise counter (45s, 2m 30s, 1h 5m 30s)
       this.description = `${formatElapsed(Date.now() - workingSince)} · ${context}`;
     } else if (session.status === 'waiting') {
       this.description = `waiting ${formatElapsedCompact(Date.now() - session.updatedAt)} · ${context}`;
@@ -158,6 +157,13 @@ export class SessionListItem extends vscode.TreeItem {
     // Store args for inline action command (same contract as SessionItem)
     (this as any)._worktreePath = worktreePath;
     (this as any)._sessionId = session.id;
+
+    // Double-click (or single-click depending on VS Code setting) opens the session
+    this.command = {
+      command: 'claude-tower.openSession',
+      title: 'Open Chat',
+      arguments: [this],
+    };
   }
 }
 
