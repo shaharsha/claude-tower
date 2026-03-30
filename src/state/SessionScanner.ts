@@ -33,8 +33,10 @@ export class SessionScanner {
     encodedProjectDir: string,
     aliveInfo?: AliveProcessInfo,
     resolvedPath?: string,
+    /** Override sessions directory for testing */
+    sessionsDirOverride?: string,
   ): Promise<TowerSession[]> {
-    const sessionsDir = getSessionsDir(encodedProjectDir);
+    const sessionsDir = sessionsDirOverride ?? getSessionsDir(encodedProjectDir);
 
     let files: string[];
     try {
@@ -43,7 +45,10 @@ export class SessionScanner {
       return [];
     }
 
-    const jsonlFiles = files.filter((f) => f.endsWith('.jsonl'));
+    // Filter out agent-* files — internal Claude Code subagent sessions.
+    // They have no hooks, no session registrations, and bursty JSONL writes
+    // that cause oscillation between Running and Recent.
+    const jsonlFiles = files.filter((f) => f.endsWith('.jsonl') && !f.startsWith('agent-'));
     if (jsonlFiles.length === 0) {
       return [];
     }
