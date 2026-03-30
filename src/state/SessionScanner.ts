@@ -147,45 +147,40 @@ export class SessionScanner {
     sessionDir: string,
     resolvedPath?: string,
     sessionId?: string,
+    /** Override hook status for testing. Pass `null` to simulate no hook file. */
+    hookStatusOverride?: { status: import('./HooksManager').HookSessionStatus; ts: number } | null,
   ): SessionStatus {
     if (tailEvents.length === 0) {
       return 'idle';
     }
 
-    // Process detection signals
+    // Process detection signals (no CPU — hooks are the source of truth)
     const isSessionAlive = sessionId
       ? aliveInfo.sessionIds.has(sessionId)
       : false;
     const isCwdAlive = this.isCwdAlive(aliveInfo.cwds, sessionDir, resolvedPath);
     const isRecent = Date.now() - mtimeMs < 30_000;
 
-    // CPU-based: is the process ACTIVELY working (CPU > 1%)?
-    // This is the most reliable signal — no JSONL heuristics needed.
-    const isSessionActive = sessionId
-      ? aliveInfo.activeSessionIds.has(sessionId)
-      : false;
-    const isCwdActive = this.isCwdAlive(aliveInfo.activeCwds, sessionDir, resolvedPath);
-
     // ── LAYER 1: Hook status (definitive, from Claude Code lifecycle events) ──
-    // No time-based expiry — hooks are the ground truth. Verify process is
-    // alive for "working"/"waiting" to catch crashes where Stop never fired.
     if (sessionId) {
-      const hookStatus = readHookStatus(sessionId);
+      const hookStatus = hookStatusOverride !== undefined
+        ? hookStatusOverride
+        : readHookStatus(sessionId);
       if (hookStatus) {
         const hookAge = Date.now() - hookStatus.ts;
 
         if (hookStatus.status === 'working') {
-          // Check if the session is actually waiting for approval despite
-          // hook saying "working" (plan approval doesn't always fire Notification)
-          if (!isSessionActive && this.hasUnresolvedToolUse(tailEvents) && !isRecent) {
+          // Trust working hooks for 5 min. PreToolUse / SubagentStart fire
+          // frequently during active work, keeping the hook fresh.
+          if (hookAge < 300_000) { return 'working'; }
+          // Stale (> 5 min) but process alive → extend trust to 10 min.
+          // Covers long-running tools (e.g. large subagent tasks).
+          if (isSessionAlive && hookAge < 600_000) { return 'working'; }
+          // Very stale + unresolved tool_use → waiting for approval
+          if (this.hasUnresolvedToolUse(tailEvents) && !isRecent) {
             return 'waiting';
           }
-          // Trust recent working hooks (< 5 min). During active work,
-          // PreToolUse fires frequently, keeping the hook fresh.
-          if (hookAge < 300_000) { return 'working'; }
-          // Hook is stale (> 5 min). A long-running tool would show CPU.
-          if (isSessionActive) { return 'working'; }
-          // Stale + no CPU → interrupted/crashed. Fall through to heuristics.
+          // Very stale + no unresolved tools → interrupted/crashed. Fall through.
         }
         if (hookStatus.status === 'waiting') {
           if (isSessionAlive || hookAge < 300_000) { return 'waiting'; }
@@ -196,12 +191,8 @@ export class SessionScanner {
           if (this.isLastResponseComplete(tailEvents)) {
             return 'done';
           }
-          // CPU active → definitely still working
-          if (isSessionActive) {
-            return 'working';
-          }
-          // No end_turn + no CPU: either between tool calls (Claude thinking
-          // server-side, 30–90s typical) or interrupted. 2-min grace covers
+          // No end_turn + process alive + recent hook → between tool calls
+          // (Claude thinking server-side, 30–90s typical). 2-min grace covers
           // most thinking periods; interrupted sessions transition after.
           if (isSessionAlive && hookAge < 120_000) {
             return 'working';
@@ -220,32 +211,22 @@ export class SessionScanner {
       return 'error';
     }
 
-    // ── LAYER 2: CPU-based (process actively using CPU) ──
-    if (isSessionActive) {
-      return 'working';
-    }
+    // ── LAYER 2: JSONL heuristics (fallback for sessions without hooks) ──
 
-    // ── LAYER 3: JSONL heuristics (fallback for sessions without hooks) ──
-
-    // 3a. Awaiting response (user sent message recently, Claude thinking)
+    // 2a. Awaiting response (user sent message recently, Claude thinking)
     //     Requires BOTH process alive AND recent file write — "alive" alone
     //     just means VS Code has the panel open.
     if ((isSessionAlive || isCwdAlive) && isRecent && this.isAwaitingResponse(tailEvents)) {
       return 'working';
     }
 
-    // 3b. Recent writes + response not complete (streaming)
+    // 2b. Recent writes + response not complete (streaming)
     if (isRecent && !this.isLastResponseComplete(tailEvents)) {
       return 'working';
     }
 
-    // 3c. Recent writes + unresolved tool_use (tool executing)
+    // 2c. Recent writes + unresolved tool_use (tool executing)
     if (isRecent && this.hasUnresolvedToolUse(tailEvents)) {
-      return 'working';
-    }
-
-    // 3d. CPU active in CWD + recent writes (agentic loop gaps)
-    if (isCwdActive && isRecent) {
       return 'working';
     }
 
