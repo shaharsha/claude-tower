@@ -4,12 +4,15 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -23,11 +26,11 @@ jobs:
     concurrency:
       group: publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -64,7 +67,6 @@ jobs:
         id: changelog
         run: |
           VERSION=$(echo "${{ steps.version.outputs.current }}" | sed 's/^v//')
-          # Extract the section between ## {version} and the next ## heading
           BODY=$(awk "/^## ${VERSION//./\\.}/{found=1; next} /^## /{if(found) exit} found{print}" CHANGELOG.md)
           echo "body<<CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
           echo "$BODY" >> "$GITHUB_OUTPUT"
