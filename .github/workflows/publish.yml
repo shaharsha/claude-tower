@@ -76,7 +76,9 @@ jobs:
         if: steps.version.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_BODY: ${{ steps.changelog.outputs.body }}
         run: |
+          echo "$RELEASE_BODY" > /tmp/release-notes.md
           gh release create "${{ steps.version.outputs.current }}" \
             --title "${{ steps.version.outputs.current }}" \
-            --notes "${{ steps.changelog.outputs.body }}"
+            --notes-file /tmp/release-notes.md
