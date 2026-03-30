@@ -1,0 +1,80 @@
+name: Test & Publish
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    concurrency:
+      group: publish
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check if version changed
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          LATEST_TAG=$(git describe --tags --match "v*" --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "current=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
+          if [ "v${VERSION}" = "${LATEST_TAG}" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Version v${VERSION} already tagged — skipping publish"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "New version: v${VERSION} (was ${LATEST_TAG})"
+          fi
+
+      - name: Tag release
+        if: steps.version.outputs.changed == 'true'
+        run: |
+          git tag "${{ steps.version.outputs.current }}"
+          git push origin "${{ steps.version.outputs.current }}"
+
+      - name: Publish to VS Code Marketplace
+        if: steps.version.outputs.changed == 'true'
+        run: |
+          npm ci
+          npx vsce publish --pat ${{ secrets.VSCE_PAT }}
+
+      - name: Extract changelog
+        if: steps.version.outputs.changed == 'true'
+        id: changelog
+        run: |
+          VERSION=$(echo "${{ steps.version.outputs.current }}" | sed 's/^v//')
+          # Extract the section between ## {version} and the next ## heading
+          BODY=$(awk "/^## ${VERSION//./\\.}/{found=1; next} /^## /{if(found) exit} found{print}" CHANGELOG.md)
+          echo "body<<CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+          echo "$BODY" >> "$GITHUB_OUTPUT"
+          echo "CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        if: steps.version.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.current }}" \
+            --title "${{ steps.version.outputs.current }}" \
+            --notes "${{ steps.changelog.outputs.body }}"
