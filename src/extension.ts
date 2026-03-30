@@ -8,7 +8,7 @@ import { LinearService } from './linear/LinearService';
 import { NotificationManager } from './notifications/NotificationManager';
 import { StatusBarManager } from './statusbar/StatusBarManager';
 import { SettingsWebview } from './views/SettingsWebview';
-import { SessionListProvider } from './views/SessionListProvider';
+import { SessionWebviewProvider } from './views/SessionWebviewProvider';
 import { installHooks, areHooksInstalled } from './state/HooksManager';
 
 import { createWorktree as createWorktreeAction } from './actions/createWorktree';
@@ -38,15 +38,13 @@ export async function activate(
   // ------------------------------------------------------------------
 
   const stateManager = new TowerStateManager(context);
-  const sessionListProvider = new SessionListProvider(stateManager, context);
+  const sessionListProvider = new SessionWebviewProvider(stateManager, context);
 
-  // Sessions views — the single control panel
-  const sessionsView = vscode.window.createTreeView('claude-tower.sessions', {
-    treeDataProvider: sessionListProvider,
-  });
-  const sessionsViewFallback = vscode.window.createTreeView('claude-tower.sessions-fallback', {
-    treeDataProvider: sessionListProvider,
-  });
+  // Sessions webview views — the single control panel
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('claude-tower.sessions', sessionListProvider),
+    vscode.window.registerWebviewViewProvider('claude-tower.sessions-fallback', sessionListProvider),
+  );
 
   // Set context keys synchronously
   vscode.commands.executeCommand('setContext', 'claude-tower.noSecondarySidebar', false);
@@ -90,11 +88,10 @@ export async function activate(
         }
       }
     }
-    const badge = attentionCount > 0
-      ? { value: attentionCount, tooltip: `${attentionCount} session${attentionCount > 1 ? 's' : ''} need attention` }
-      : undefined;
-    sessionsView.badge = badge;
-    sessionsViewFallback.badge = badge;
+    sessionListProvider.setBadge(
+      attentionCount,
+      `${attentionCount} session${attentionCount > 1 ? 's' : ''} need attention`,
+    );
 
     // Detect notification transitions
     notificationManager.detectTransitions(previousTasks, tasks);
@@ -541,10 +538,6 @@ export async function activate(
   // ------------------------------------------------------------------
 
   context.subscriptions.push(
-    // Tree views
-    sessionsView,
-    sessionsViewFallback,
-
     // View providers
     { dispose: () => sessionListProvider.dispose() },
 

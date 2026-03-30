@@ -2,7 +2,7 @@
   "name": "claude-tower",
   "displayName": "Claude Tower",
   "description": "Control tower for your Claude Code agents. Monitor all sessions across projects and worktrees from one sidebar.",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "publisher": "shaharsha",
   "engines": {
     "vscode": "^1.98.0"
@@ -53,6 +53,7 @@
         {
           "id": "claude-tower.sessions",
           "name": "Sessions",
+          "type": "webview",
           "when": "!claude-tower.noSecondarySidebar"
         }
       ],
@@ -60,6 +61,7 @@
         {
           "id": "claude-tower.sessions-fallback",
           "name": "Sessions",
+          "type": "webview",
           "when": "claude-tower.noSecondarySidebar"
         }
       ]
@@ -181,33 +183,7 @@
           "group": "navigation@3"
         }
       ],
-      "view/item/context": [
-        {
-          "command": "claude-tower.openSession",
-          "when": "viewItem =~ /^session/",
-          "group": "inline@1"
-        },
-        {
-          "command": "claude-tower.shipSession",
-          "when": "viewItem == session",
-          "group": "inline@2"
-        },
-        {
-          "command": "claude-tower.removeWorktree",
-          "when": "viewItem =~ /^session/",
-          "group": "context@1"
-        },
-        {
-          "command": "claude-tower.newSession",
-          "when": "viewItem == ready-worktree",
-          "group": "inline@1"
-        },
-        {
-          "command": "claude-tower.removeWorktree",
-          "when": "viewItem == ready-worktree",
-          "group": "context@1"
-        }
-      ]
+      "view/item/context": []
     },
     "configuration": {
       "title": "Claude Tower",
@@ -259,6 +235,7 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.98.0",
+    "@vscode/codicons": "^0.0.45",
     "esbuild": "^0.24.0",
     "tsx": "^4.21.0",
     "typescript": "^5.5.0"
