@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.12
+
+- **Fix missing icons in published extension** — move `@vscode/codicons` from devDependencies to dependencies so `vsce` includes it in the package
+
 ## 0.2.11
 
 - **WebviewView sidebar** — card-based session list with colored accents, two-line layout, hover-reveal actions, collapsible groups, right-click context menu, double-click to open

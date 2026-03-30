@@ -2,7 +2,7 @@
   "name": "claude-tower",
   "displayName": "Claude Tower",
   "description": "Control tower for your Claude Code agents. Monitor all sessions across projects and worktrees from one sidebar.",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "publisher": "shaharsha",
   "engines": {
     "vscode": "^1.98.0"
@@ -235,12 +235,12 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.98.0",
-    "@vscode/codicons": "^0.0.45",
     "esbuild": "^0.24.0",
     "tsx": "^4.21.0",
     "typescript": "^5.5.0"
   },
   "dependencies": {
-    "@linear/sdk": "^28.0.0"
+    "@linear/sdk": "^28.0.0",
+    "@vscode/codicons": "^0.0.45"
   }
 }
