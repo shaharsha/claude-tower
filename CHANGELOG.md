@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.14
+
+- **Fix Running ↔ Recent oscillation** — filter out `agent-*` subagent JSONL files from session scanning. These internal Claude Code files have no hooks or session registrations, causing JSONL heuristics to oscillate based on mtime recency.
+- **182 tests** — added 7 `scanSessions` integration tests covering agent file filtering, empty dirs, mixed files.
+
 ## 0.2.13
 
 - **Fix missing session titles** — sessions with large JSONL files (>8KB) showed "Session abc123" instead of the actual title. Now greps the full file for the ai-title when head/tail windows miss it.
