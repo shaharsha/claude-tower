@@ -89,6 +89,26 @@ export async function readJsonlHead(
   }
 }
 
+/**
+ * Extract the ai-title from a JSONL file using grep.
+ * The ai-title event can be anywhere in the file (not just head/tail),
+ * so we grep the whole file instead of reading fixed-size windows.
+ */
+export async function readAiTitle(filePath: string): Promise<string | undefined> {
+  try {
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const execFileAsync = promisify(execFile);
+    const { stdout } = await execFileAsync('grep', ['-m', '1', '"ai-title"', filePath], { timeout: 3000 });
+    const line = stdout.trim();
+    if (!line) { return undefined; }
+    const parsed = JSON.parse(line);
+    return parsed.aiTitle || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function parseLines(text: string): JsonlEvent[] {
   const results: JsonlEvent[] = [];
   const lines = text.split('\n');

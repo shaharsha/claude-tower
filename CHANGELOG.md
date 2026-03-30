@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.13
+
+- **Fix missing session titles** — sessions with large JSONL files (>8KB) showed "Session abc123" instead of the actual title. Now greps the full file for the ai-title when head/tail windows miss it.
+- **Also check tail events for summary** — deriveSummary now searches both head and tail for ai-title and user messages.
+
 ## 0.2.12
 
 - **Fix missing icons in published extension** — move `@vscode/codicons` from devDependencies to dependencies so `vsce` includes it in the package
