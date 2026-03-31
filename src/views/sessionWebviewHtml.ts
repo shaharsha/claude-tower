@@ -428,7 +428,8 @@ export function buildSessionsHtml(
       const cssClass = item.toReview ? 'to-review' : statusClass;
       let h = '<div class="session-card ' + esc(cssClass) + '" ';
       h += 'data-session-id="' + esc(item.id) + '" ';
-      h += 'data-worktree="' + esc(item.worktreePath) + '">';
+      h += 'data-worktree="' + esc(item.worktreePath) + '" ';
+      h += 'title="' + esc(item.tooltip || '') + '">';
       h += '<div class="card-accent"></div>';
       h += '<div class="card-content">';
       h += '<div class="card-header">';
