@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.15
+
+- **Session card tooltips** — hover a session card to see title, status, project/branch, and message count
+- **CLAUDE.md** — updated common gotchas for hook writes and webview architecture
+
 ## 0.2.14
 
 - **Fix Running ↔ Recent oscillation** — filter out `agent-*` subagent JSONL files from session scanning. These internal Claude Code files have no hooks or session registrations, causing JSONL heuristics to oscillate based on mtime recency.

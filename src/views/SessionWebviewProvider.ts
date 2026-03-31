@@ -231,6 +231,15 @@ export class SessionWebviewProvider implements vscode.WebviewViewProvider {
       const summary = (f.session.summary || `Session ${f.session.id.slice(0, 8)}`)
         .replace(/^You are working on:\s*/i, '');
 
+      const STATUS_LABELS: Record<string, string> = {
+        working: 'Working',
+        waiting: 'Waiting for approval',
+        done: 'Done',
+        error: 'Error',
+        idle: 'Idle',
+      };
+      const tooltip = `${summary}\n${STATUS_LABELS[f.session.status] ?? f.session.status}\n${f.projectName} · ${f.branch}\n${f.session.messageCount} messages · ${formatElapsedCompact(now - f.session.updatedAt)} ago`;
+
       return {
         id: f.session.id,
         summary,
@@ -240,6 +249,7 @@ export class SessionWebviewProvider implements vscode.WebviewViewProvider {
         showShip: f.session.status !== 'working' && f.session.status !== 'waiting',
         showOpen: true,
         toReview: isToReview,
+        tooltip,
       };
     };
 

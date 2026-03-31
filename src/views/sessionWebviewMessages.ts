@@ -11,6 +11,8 @@ export interface SessionItemData {
   showOpen: boolean;
   /** Unread session in To Review group */
   toReview?: boolean;
+  /** Tooltip text for hover */
+  tooltip: string;
 }
 
 /** Data for a pending worktree */
