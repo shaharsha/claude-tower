@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.16
+
+- **Strip Claude Code meta-message tags from session titles** — sessions whose first user turn was a slash command, IDE file-open notification, or other system-injected context (wrapped in `<local-command-caveat>`, `<ide_opened_file>`, `<system-reminder>`, etc. and flagged `isMeta: true`) no longer leak that wrapper text into the card title. Falls through to the next real user message, or empty if none.
+- **186 tests** — added 4 `deriveSummary` cases covering meta-flag skip, tag-wrapped fallback for older logs, literal `<TodoWrite>` user input preserved, all-meta session.
+
 ## 0.2.15
 
 - **Session card tooltips** — hover a session card to see title, status, project/branch, and message count
