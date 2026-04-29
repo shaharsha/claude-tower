@@ -565,22 +565,26 @@ export class SessionScanner {
       }
     }
 
-    // Look for the first user message in head, then fall back to tail
+    // Look for the first user message in head, then fall back to tail.
+    // Skip Claude Code's system-injected meta turns (IDE notifications, slash-command
+    // caveats, bash I/O, etc.) — these are flagged isMeta and/or wrapped in <tag>…</tag>.
     for (const events of [headEvents, tailEvents]) {
       for (const event of events) {
         if (event.type === 'user' || (event.type === 'message' && event.role === 'user')) {
+          if ((event as any).isMeta === true) { continue; }
           const content = (event as any).message?.content ?? event.content;
+          let text: string | undefined;
           if (typeof content === 'string') {
-            return truncate(content, 120);
-          }
-          if (Array.isArray(content)) {
-            const text = content
+            text = content;
+          } else if (Array.isArray(content)) {
+            const joined = content
               .filter((b: any) => b.type === 'text')
               .map((b: any) => b.text)
               .join(' ');
-            if (text) {
-              return truncate(text, 120);
-            }
+            if (joined) { text = joined; }
+          }
+          if (text && !isMetaTagWrapped(text)) {
+            return truncate(text, 120);
           }
         }
       }
@@ -609,4 +613,15 @@ function truncate(text: string, maxLen: number): string {
     return text;
   }
   return text.slice(0, maxLen - 3) + '...';
+}
+
+// Claude Code wraps system-injected user turns (IDE events, slash-command caveats,
+// bash I/O, system reminders, etc.) in <tag>…</tag>. Match the wrapper conservatively:
+// only treat text as meta when it both opens with <tag> and closes the same tag
+// somewhere in the message — so a literal "<TodoWrite>…" the user typed still passes.
+function isMetaTagWrapped(text: string): boolean {
+  const trimmed = text.trimStart();
+  const match = /^<([a-z][a-z0-9_-]*)>/i.exec(trimmed);
+  if (!match) { return false; }
+  return trimmed.includes(`</${match[1]}>`);
 }
