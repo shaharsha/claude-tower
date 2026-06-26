@@ -710,7 +710,7 @@ export class TowerStateManager {
         (eventType, filename) => {
           if (filename && filename.endsWith('.jsonl')) {
             // Check if this JSONL is from a known project or a new one
-            const encodedDir = filename.split('/')[0] ?? filename.split('\\')[0];
+            const encodedDir = filename.split(/[/\\]/)[0];
             const isKnownProject = this.state.projects.some(
               (p) => p.id === encodedDir ||
                 p.worktrees.some((w) => encodeProjectPath(w.path) === encodedDir),

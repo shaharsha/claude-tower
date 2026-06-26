@@ -115,10 +115,23 @@ export class ProcessMonitor {
   /**
    * Get CPU usage for multiple PIDs in a single ps call.
    * Returns Map<pid, cpuPercent>. Missing PIDs = process dead.
+   * On Windows, uses process.kill(pid, 0) for liveness (CPU reported as 0).
    */
   private async getCpuForPids(pids: number[]): Promise<Map<number, number>> {
     const cpuMap = new Map<number, number>();
     if (pids.length === 0) { return cpuMap; }
+
+    if (process.platform === 'win32') {
+      for (const pid of pids) {
+        try {
+          process.kill(pid, 0); // throws if process does not exist
+          cpuMap.set(pid, 0);   // alive; CPU unknown on Windows, report 0
+        } catch {
+          // process dead — omit from map
+        }
+      }
+      return cpuMap;
+    }
 
     try {
       const pidList = pids.join(',');
