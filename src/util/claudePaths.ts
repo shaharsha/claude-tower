@@ -13,27 +13,35 @@ export function getClaudeProjectsDir(): string {
 /**
  * Decode a Claude-encoded project directory name back to an absolute path.
  *
- * The encoding replaces `/` with `-`, so `-Users-shahar-project` becomes
- * `/Users/shahar/project`. Since this is inherently ambiguous (a directory
- * name could contain a literal `-`), callers should verify the result with
- * `fs.existsSync`.
+ * Unix paths: `-Users-shahar-project` → `/Users/shahar/project`
+ * Windows paths: `C--Users-foo-project` → `C:\Users\foo\project`
+ *
+ * Since `-` is inherently ambiguous, callers should verify the result with
+ * `fs.existsSync` and fall back to reading the cwd from a JSONL event.
  */
 export function decodeProjectPath(encoded: string): string {
-  // Replace leading `-` with `/`, then remaining `-` with `/`
   let decoded = encoded;
   if (decoded.startsWith('-')) {
+    // Unix path: leading '-' encodes the root '/'
     decoded = '/' + decoded.slice(1);
+    decoded = decoded.replace(/-/g, '/');
+    return decoded;
   }
+  // Replace all remaining '-' with '/'
   decoded = decoded.replace(/-/g, '/');
+  // Windows drive path: "X//" at start means "X:\" (e.g. "C//Users/foo" → "C:\Users\foo")
+  if (/^[A-Za-z]\/\//.test(decoded)) {
+    return decoded[0] + ':\\' + decoded.slice(3).replace(/\//g, '\\');
+  }
   return decoded;
 }
 
 /**
  * Encode an absolute path to the Claude project directory name format.
- * Claude Code replaces both `/` and `.` with `-`.
+ * Claude Code replaces `/`, `\`, `:`, and `.` with `-`.
  */
 export function encodeProjectPath(absolutePath: string): string {
-  return absolutePath.replace(/[/.]/g, '-');
+  return absolutePath.replace(/[/\\:.]/g, '-');
 }
 
 /**

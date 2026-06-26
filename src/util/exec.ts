@@ -10,26 +10,34 @@ const DEFAULT_TIMEOUT = 30_000;
 
 /**
  * Escape a string for safe use inside single-quoted shell arguments.
- * Replaces `'` with `'\''` (end quote, escaped quote, start quote).
+ * On Unix: replaces `'` with `'\''`. On Windows (PowerShell): doubles `'` to `''`.
  */
 export function shellQuote(value: string): string {
+  if (process.platform === 'win32') {
+    return `'${value.replace(/'/g, "''")}'`;
+  }
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 /**
  * Run a shell command and return stdout.
- * Uses `/bin/sh -c` for safety. Rejects on non-zero exit with stderr.
+ * Uses `/bin/sh -c` on Unix and PowerShell on Windows. Rejects on non-zero exit with stderr.
  */
 export function exec(
   command: string,
   options?: ExecOptions,
 ): Promise<string> {
   const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
+  const isWindows = process.platform === 'win32';
+  const shell = isWindows ? 'powershell.exe' : '/bin/sh';
+  const shellArgs = isWindows
+    ? ['-NoProfile', '-NonInteractive', '-Command', command]
+    : ['-c', command];
 
   return new Promise<string>((resolve, reject) => {
     const child = cp.execFile(
-      '/bin/sh',
-      ['-c', command],
+      shell,
+      shellArgs,
       {
         cwd: options?.cwd,
         env: options?.env ? { ...process.env, ...options.env } : undefined,
